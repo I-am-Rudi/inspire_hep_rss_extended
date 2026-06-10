@@ -1,4 +1,5 @@
 use axum::{
+    Extension,
     extract::Query,
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -75,19 +76,37 @@ struct OptConfig {
     /// Port to bind to
     #[structopt(long, default_value = "3000")]
     port: u16,
+
+    /// Use jobs API endpoint instead of literature API endpoint
+    #[structopt(long)]
+    jobs_api: bool,
+}
+
+#[derive(Clone)]
+struct AppConfig {
+    base_url: &'static str,
 }
 
 #[tokio::main]
 async fn main() {
     // Parse command-line arguments
     let config = OptConfig::from_args();
+    let app_config = AppConfig {
+        base_url: if config.jobs_api {
+            "https://inspirehep.net/api/jobs"
+        } else {
+            "https://inspirehep.net/api/literature"
+        },
+    };
 
     // Define the IP and port to bind the server to
     let addr = SocketAddr::new(config.ip.parse().unwrap(), config.port);
     println!("Listening on http://{}", addr);
 
     // Define a router with a single route that handles GET requests
-    let app = Router::new().route("/", get(handle_request));
+    let app = Router::new()
+        .route("/", get(handle_request))
+        .layer(Extension(app_config));
 
 
     // Run the HTTP server
@@ -98,10 +117,16 @@ async fn main() {
 }
 
 // Handler function for GET requests to "/"
-async fn handle_request(Query(params): Query<HashMap<String, String>>) -> Result<Response, StatusCode> {
+async fn handle_request(
+    Extension(app_config): Extension<AppConfig>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Response, StatusCode> {
     // Construct the InspireHEP API URL with all query parameters forwarded
-    let base_url = "https://inspirehep.net/api/literature";
-    let url = format!("{}?{}", base_url, serde_urlencoded::to_string(&params).unwrap());
+    let url = format!(
+        "{}?{}",
+        app_config.base_url,
+        serde_urlencoded::to_string(&params).unwrap()
+    );
     //println!("Fetching data from: {}", url);
 
     // Fetch data from the InspireHEP API
@@ -144,8 +169,12 @@ fn convert_to_rss_item(hit: &Hit) -> Item {
         .and_then(|titles| titles.get(0).and_then(|ttl| ttl.title.clone()))
         .unwrap_or_else(|| "No Title".to_string());
 
-    //let link = hit.links.json.clone().unwrap_or_else(|| "https://inspirehep.net".to_string());
-    let link = format!("https://inspirehep.net/literature/{}", hit.metadata.control_number.unwrap_or(0));
+    let link = hit.links.json.clone().unwrap_or_else(|| {
+        format!(
+            "https://inspirehep.net/literature/{}",
+            hit.metadata.control_number.unwrap_or(0)
+        )
+    });
 
 
     let description = hit.metadata.abstracts.as_ref()
@@ -180,4 +209,3 @@ fn convert_to_rss_item(hit: &Hit) -> Item {
         .pub_date(Some(rss_date))
         .build()
 }
-

@@ -1,6 +1,7 @@
 # inspire_hep_rss feed
 
 This simple rust program queries the inspireHEP REST API and provides a RSS feed under e.g. http://127.0.0.1:3000/?sort=mostrecent&size=10&q=a%20Alexander.Neuwirth.1 following the options of the API https://github.com/inspirehep/rest-api-doc.
+By default it uses the Literature API endpoint, and you can switch to the Jobs API endpoint with `--jobs-api`.
 
 When adding the RSS feed to e.g. Thunderbird, please keep the update frequency low, like 1 update per day.
 
@@ -37,6 +38,12 @@ For more options (i.e. modifying the port, etc.) see the help:
 
 ```bash
 inspire_hep_rss --help
+```
+
+To use the Jobs API instead of the Literature API:
+
+```bash
+inspire_hep_rss --jobs-api
 ```
 
 ## Development 
